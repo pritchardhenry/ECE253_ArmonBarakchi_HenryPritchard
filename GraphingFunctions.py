@@ -25,6 +25,9 @@ def compute_lpips(img1, img2):
 
 
 def plotGraph(clean_imgs, noisy_imgs, original_imgs=None, save_path=None):
+    """Plot graph of noisy, clean, and optionally original images. Calculates statistics
+    and displays them in the plot. To use, need to ensure that the indexes of the img arrays
+    line up. i.e: clean[1] should be the cleaned version of noisy[1] and original[1]."""
     assert len(clean_imgs) == len(noisy_imgs)
     if original_imgs is not None:
         assert len(clean_imgs) == len(original_imgs)
@@ -98,5 +101,5 @@ def plotGraph(clean_imgs, noisy_imgs, original_imgs=None, save_path=None):
     if save_path is not None:
         plt.savefig(save_path, format='pdf', bbox_inches='tight')
         print(f"Figure saved as PDF at: {save_path}")
-
-    plt.show()
+    if save_path is None:
+        plt.show()
