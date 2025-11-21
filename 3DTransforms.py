@@ -40,4 +40,62 @@ def dct_dwt_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
 
     return BlockGroup, nonzero_cnt
 
-def wavelet_transforms(BlockGroup, wavelet_order=2):
+def full_haar_3d_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
+    """
+    Applies Haar or Daubechies transform along all 3 axes (0,1,2), thresholds, then reconstructs.
+
+    Parameters:
+    -----------
+    BlockGroup : ndarray of shape (B, N, M)
+    lamb3d : float
+    sigma : float
+    wavelet : str
+        Should be 'haar' or any supported wavelet.
+
+    Returns:
+    --------
+    BlockGroup : ndarray (same shape), reconstructed from thresholded coefficients
+    nonzero_cnt : int, total number of nonzero wavelet coefficients after thresholding
+    """
+    BlockGroup = np.asarray(BlockGroup).copy()
+    ThreValue = lamb3d * sigma
+    nonzero_cnt = 0
+
+    # Step 1: Apply wavelet along axis=0
+    for i in range(BlockGroup.shape[1]):
+        for j in range(BlockGroup.shape[2]):
+            vec = BlockGroup[:, i, j]
+            coeffs = pywt.wavedec(vec, wavelet=wavelet, axis=0)
+            thresholded = coeffs.copy()
+            for k in range(1, len(coeffs)):
+                mask = np.abs(coeffs[k]) >= ThreValue
+                thresholded[k] = coeffs[k] * mask
+                nonzero_cnt += np.count_nonzero(mask)
+            BlockGroup[:, i, j] = pywt.waverec(thresholded, wavelet=wavelet, axis=0)[:BlockGroup.shape[0]]
+
+    # Step 2: Apply wavelet along axis=1
+    for b in range(BlockGroup.shape[0]):
+        for j in range(BlockGroup.shape[2]):
+            vec = BlockGroup[b, :, j]
+            coeffs = pywt.wavedec(vec, wavelet=wavelet, axis=0)
+            thresholded = coeffs.copy()
+            for k in range(1, len(coeffs)):
+                mask = np.abs(coeffs[k]) >= ThreValue
+                thresholded[k] = coeffs[k] * mask
+                nonzero_cnt += np.count_nonzero(mask)
+            BlockGroup[b, :, j] = pywt.waverec(thresholded, wavelet=wavelet, axis=0)[:BlockGroup.shape[1]]
+
+    # Step 3: Apply wavelet along axis=2
+    for b in range(BlockGroup.shape[0]):
+        for i in range(BlockGroup.shape[1]):
+            vec = BlockGroup[b, i, :]
+            coeffs = pywt.wavedec(vec, wavelet=wavelet, axis=0)
+            thresholded = coeffs.copy()
+            for k in range(1, len(coeffs)):
+                mask = np.abs(coeffs[k]) >= ThreValue
+                thresholded[k] = coeffs[k] * mask
+                nonzero_cnt += np.count_nonzero(mask)
+            BlockGroup[b, i, :] = pywt.waverec(thresholded, wavelet=wavelet, axis=0)[:BlockGroup.shape[2]]
+
+    return BlockGroup, nonzero_cnt
+
