@@ -106,7 +106,7 @@ def plotGraph(clean_imgs, noisy_imgs, original_imgs=None, save_path=None):
     if save_path is None:
         plt.show()
 
-
+#from this github repo https://github.com/pranavsr97/Image-Processing
 def zoom(imgpath, x_coord, y_coord, scale):
     img = cv2.imread(imgpath)
 
