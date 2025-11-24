@@ -19,6 +19,7 @@ import argparse
 from scipy.fftpack import dct, idct
 import numpy as np
 import argparse
+from Transforms import *
 
 # ==================================================================================================
 #                                              Macros
@@ -337,8 +338,8 @@ def BM3D_Step1(noisyImg, config):
     Kaiser_Window_beta = config.Kaiser_Window_beta
     lamb2d = config.lamb2d
     lamb3d = config.lamb3d
-
-
+    transform_type = config.Transform_Type
+    wavelet = config.Wavelet_Type
     # preprocessing
     basicImg, basicWeight, basicKaiser = Initialization(noisyImg, BlockSize, Kaiser_Window_beta)
 
@@ -353,7 +354,13 @@ def BM3D_Step1(noisyImg, config):
                         min(spdup_factor * j, noisyImg.shape[1] - BlockSize - 1)]
             BlockPos, BlockGroup = Step1_Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, \
                                                   ThreDist, MaxMatch, WindowSize, sigma, lamb2d)
-            BlockGroup, nonzero_cnt = Step1_3DFiltering(BlockGroup, sigma, lamb3d)
+            if transform_type == "DCT_wavelet":
+                BlockGroup, nonzero_cnt = dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet)
+            elif transform_type == "Wavelet":
+                BlockGroup, nonzero_cnt = full_wavelet_3d_transform(BlockGroup, sigma, lamb3d, wavelet)
+            else:
+                BlockGroup, nonzero_cnt = Step1_3DFiltering(BlockGroup, sigma, lamb3d)
+
             Step1_Aggregation(BlockGroup, BlockPos, basicImg, basicWeight, basicKaiser, nonzero_cnt, sigma)
     basicWeight = np.where(basicWeight == 0, 1, basicWeight)
     basicImg[:, :] /= basicWeight[:, :]

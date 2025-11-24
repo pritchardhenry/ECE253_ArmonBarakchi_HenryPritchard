@@ -3,7 +3,7 @@ import numpy as np
 import pywt
 
 
-def dct_dwt_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
+def dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet='haar'):
     B, N, M = BlockGroup.shape
     BlockGroup = np.asarray(BlockGroup).copy()
 
@@ -12,38 +12,24 @@ def dct_dwt_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
 
     for b in range(B):
         BlockGroup[b] = dct(dct(BlockGroup[b], axis=0, norm='ortho'), axis=1, norm='ortho')
-    # if wavelet == 'haar':
+        # if wavelet == 'haar':
     for i in range(N):
         for j in range(M):
             vector = BlockGroup[:, i, j]
-            coeffs = pywt.wavedec(vector, wavelet=wavelet, axis=0)
-            thresholded_coeffs = coeffs.copy()
-            for k in range(1, len(coeffs)):
-                mask = np.abs(coeffs[k]) >= ThreValue
-                thresholded_coeffs[k] = coeffs[k] * mask
-                nonzero_cnt += np.count_nonzero(mask)
-            reconstructed = pywt.waverec(coeffs, wavelet=wavelet, axis=0)
+            cA, cD = pywt.dwt(vector, wavelet=wavelet, axis=0)
+            mask = np.abs(cD) >= ThreValue
+            cD = cD * mask
+            nonzero_cnt += np.count_nonzero(mask)
+            reconstructed = pywt.idwt(cA, cD, wavelet=wavelet, axis=0)
             BlockGroup[:, i, j] = reconstructed[:B]
-    # if wavelet.startswith('db'):
-    #     for i in range(N):
-    #         for j in range(M):
-    #             vector = BlockGroup[:, i, j]
-    #             coeffs = pywt.wavedec(vector, wavelet=wavelet, axis=0)
-    #             thresholded_coeffs = coeffs.copy()
-    #             for k in range(1, len(coeffs)):
-    #                 mask = np.abs(coeffs[k]) >= ThreValue
-    #                 thresholded_coeffs[k] = coeffs[k] * mask
-    #                 nonzero_cnt += np.count_nonzero(mask)
-    #
-    #             reconstructed = pywt.waverec(thresholded_coeffs, wavelet=wavelet, axis=0)
-    #             BlockGroup[:, i, j] = reconstructed[:B]  # truncate if needed
+
 
     for b in range(B):
         BlockGroup[b] = idct(idct(BlockGroup[b], axis=1, norm='ortho'), axis=0, norm='ortho')
 
     return BlockGroup, nonzero_cnt
 
-def full_wavelet_3d_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
+def full_wavelet_3d_transform(BlockGroup, sigma, lamb3d, wavelet='haar'):
     """
     Applies Haar or Daubechies transform along all 3 axes (0,1,2), thresholds, then reconstructs.
 
@@ -63,6 +49,9 @@ def full_wavelet_3d_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
     BlockGroup = np.asarray(BlockGroup).copy()
     ThreValue = lamb3d * sigma
     nonzero_cnt = 0
+    B, N, M = BlockGroup.shape
+    for b in range(B):
+        BlockGroup[b] = idct(idct(BlockGroup[b], axis=0, norm='ortho'), axis=1, norm='ortho')
 
     # Step 1: Apply wavelet along axis=0
     for i in range(BlockGroup.shape[1]):
@@ -102,3 +91,24 @@ def full_wavelet_3d_transform(BlockGroup, lamb3d, sigma, wavelet='haar'):
 
     return BlockGroup, nonzero_cnt
 
+########################################## In progress 2D transform code #################
+
+# for i in range(N):
+    #     for j in range(M):
+    #         vector = BlockGroup[:, i, j]
+    #         cA, (cH, cV, cD) = pywt.dwt2(vector, wavelet=wavelet)
+    #         thresholded_coeffs = coeffs.copy()
+    #         for k in range(1, len(coeffs)):
+    #             maskH = np.abs(cH[k]) >= ThreValue
+    #             maskV = np.abs(cV[k]) >= ThreValue
+    #             maskD = np.abs(cD[k]) >= ThreValue
+    #             thresholded_coeffsH[k] = cH[k] * maskH
+    #             thresholded_coeffsV[k] = cV[k] * maskV
+    #             thresholded_coeffsD[k] = cD[k] * maskD
+    #             maskH = maskH > 0
+    #             maskV = maskV > 0
+    #             maskD = maskD > 0
+    #             mask = maskH | maskV | maskD
+    #             nonzero_cnt += np.count_nonzero(mask)
+    #         reconstructed = pywt.idwt2(cA, (cH, cV, cD), wavelet=wavelet)
+    #         BlockGroup[:, i, j] = reconstructed[:B]

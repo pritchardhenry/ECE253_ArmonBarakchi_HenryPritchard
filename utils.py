@@ -32,6 +32,8 @@ def get_config():
     parser.add_argument("--Kaiser_Window_beta", type=float, default=2.0,
                         help="Beta parameter for Kaiser window (default: 2.0)")
 
+    parser.add_argument("--Transform_Type", type=str, default="3D_DCT",)
+    parser.add_argument("--Wavelet_Type", type=str, default="haar")
     args = parser.parse_args()
     return args
 
