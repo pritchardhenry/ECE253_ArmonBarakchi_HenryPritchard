@@ -18,6 +18,7 @@ import sys
 import argparse
 from scipy.fftpack import dct, idct
 import numpy as np
+from tqdm import tqdm
 import argparse
 from Transforms import *
 
@@ -30,46 +31,15 @@ from Transforms import *
 # ==================================================================================================
 
 def AddNoise(Img, sigma):
-    """
-    Add Gaussian nosie to an image
-
-    Return:
-        nosiy image
-    """
 
     GuassNoise = np.random.normal(0, sigma, Img.shape)
 
-    noisyImg = Img + GuassNoise  # float type noisy image
-
-    #    cv2.normalize(noisyImg, noisyImg, 0, 255, cv2.NORM_MINMAX, dtype=-1)
-    #
-    #    noisyImg = noisyImg.astype(np.uint8)
-    #
-    #    cv2.imwrite('noisydog.png', noisyImg)
-    #
-    #    if cv2.imwrite('noisydog.png', noisyImg) == True:
-    #
-    #        print('Noise has been added to the original image.\n')
-    #
-    #        return noisyImg
-    #
-    #    else:
-    #
-    #        print('Error: adding noise failed.\n')
-    #
-    #        exit()
+    noisyImg = Img + GuassNoise
 
     return noisyImg
 
 
 def Initialization(Img, BlockSize, Kaiser_Window_beta):
-    """
-    Initialize the image, weight and Kaiser window
-
-    Return:
-        InitImg & InitWeight: zero-value Img.shape matrices
-                  InitKaiser: (BlockSize * BlockSize) Kaiser window
-    """
 
     InitImg = np.zeros(Img.shape, dtype=float)
 
@@ -83,14 +53,6 @@ def Initialization(Img, BlockSize, Kaiser_Window_beta):
 
 
 def SearchWindow(Img, RefPoint, BlockSize, WindowSize):
-    """
-    Find the search window whose center is reference block in *Img*
-
-    Note that the center of SearchWindow is not always the reference block because of the border
-
-    Return:
-        (2 * 2) array of left-top and right-bottom coordinates in search window
-    """
 
     if BlockSize >= WindowSize:
         print('Error: BlockSize is smaller than WindowSize.\n')
@@ -121,30 +83,16 @@ def SearchWindow(Img, RefPoint, BlockSize, WindowSize):
 
 
 def dct2D(A):
-    """
-    2D discrete cosine transform (DCT)
-    """
 
     return dct(dct(A, axis=0, norm='ortho'), axis=1, norm='ortho')
 
 
 def idct2D(A):
-    """
-    inverse 2D discrete cosine transform
-    """
 
     return idct(idct(A, axis=0, norm='ortho'), axis=1, norm='ortho')
 
 
 def PreDCT(Img, BlockSize):
-    """
-    Do discrete cosine transform (2D transform) for each block in *Img* to reduce the complexity of
-    applying transforms
-
-    Return:
-        BlockDCT_all: 4-dimensional array whose first two dimensions correspond to the block's
-                      position and last two correspond to the DCT array of the block
-    """
 
     BlockDCT_all = np.zeros((Img.shape[0] - BlockSize, Img.shape[1] - BlockSize, BlockSize, BlockSize), \
                             dtype=float)
@@ -163,19 +111,7 @@ def PreDCT(Img, BlockSize):
 #                                         Basic estimate
 # ==================================================================================================
 
-def Step1_Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, ThreDist, MaxMatch, WindowSize, sigma, lamb2d):
-    """
-    Find blocks similar to the reference one in *noisyImg* based on *BlockDCT_all*
-
-    Note that the distance computing is chosen from original paper rather than the analysis one
-
-    Return:
-          BlockPos: array of blocks' position (left-top point)
-        BlockGroup: 3-dimensional array whose last two dimensions correspond to the DCT array of
-                     the block
-    """
-
-    # initialization
+def Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, ThreDist, MaxMatch, WindowSize, sigma, lamb2d):
 
     WindowLoc = SearchWindow(noisyImg, RefPoint, BlockSize, WindowSize)
 
@@ -199,7 +135,7 @@ def Step1_Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, ThreDist, MaxMat
 
             SearchedDCT = BlockDCT_all[WindowLoc[0, 0] + i, WindowLoc[0, 1] + j, :, :]
 
-            dist = Step1_ComputeDist(RefDCT, SearchedDCT, sigma, lamb2d)
+            dist = ComputeDist(RefDCT, SearchedDCT, sigma, lamb2d)
 
             if dist < ThreDist:
                 BlockPos[match_cnt, :] = [WindowLoc[0, 0] + i, WindowLoc[0, 1] + j]
@@ -209,11 +145,6 @@ def Step1_Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, ThreDist, MaxMat
                 Dist[match_cnt] = dist
 
                 match_cnt += 1
-
-    #    if match_cnt == 1:
-    #
-    #        print('WARNING: no similar blocks founded for the reference block {} in basic estimate.\n'\
-    #              .format(RefPoint))
 
     if match_cnt <= MaxMatch:
 
@@ -236,10 +167,7 @@ def Step1_Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, ThreDist, MaxMat
     return BlockPos, BlockGroup
 
 
-def Step1_ComputeDist(BlockDCT1, BlockDCT2, sigma, lamb2d):
-    """
-    Compute the distance of two DCT arrays *BlockDCT1* and *BlockDCT2*
-    """
+def ComputeDist(BlockDCT1, BlockDCT2, sigma, lamb2d):
 
     if BlockDCT1.shape != BlockDCT1.shape:
 
@@ -255,7 +183,7 @@ def Step1_ComputeDist(BlockDCT1, BlockDCT2, sigma, lamb2d):
 
     BlockSize = BlockDCT1.shape[0]
 
-    if sigma > 40:
+    if sigma >= 40:
         ThreValue = lamb2d * sigma
 
         BlockDCT1 = np.where(abs(BlockDCT1) < ThreValue, 0, BlockDCT1)
@@ -265,14 +193,7 @@ def Step1_ComputeDist(BlockDCT1, BlockDCT2, sigma, lamb2d):
     return np.linalg.norm(BlockDCT1 - BlockDCT2) ** 2 / (BlockSize ** 2)
 
 
-def Step1_3DFiltering(BlockGroup, sigma, lamb3d):
-    """
-    Do collaborative hard-thresholding which includes 3D transform, noise attenuation through
-    hard-thresholding and inverse 3D transform
-
-    Return:
-        BlockGroup
-    """
+def Filtering(BlockGroup, sigma, lamb3d):
 
     ThreValue = lamb3d * sigma
 
@@ -295,13 +216,7 @@ def Step1_3DFiltering(BlockGroup, sigma, lamb3d):
     return BlockGroup, nonzero_cnt
 
 
-def Step1_Aggregation(BlockGroup, BlockPos, basicImg, basicWeight, basicKaiser, nonzero_cnt, sigma):
-    """
-    Compute the basic estimate of the true-image by weighted averaging all of the obtained
-    block-wise estimates that are overlapping
-
-    Note that the weight is set accroding to the original paper rather than the BM3D analysis one
-    """
+def Aggregation(BlockGroup, BlockPos, basicImg, basicWeight, basicKaiser, nonzero_cnt, sigma):
 
     if nonzero_cnt < 1:
 
@@ -321,20 +236,14 @@ def Step1_Aggregation(BlockGroup, BlockPos, basicImg, basicWeight, basicKaiser, 
 
 
 def BM3D_Step1(noisyImg, config):
-    """
-    Give the basic estimate after grouping, collaborative filtering and aggregation
-
-    Return:
-        basic estimate basicImg
-    """
 
     # Config
     sigma = config.sigma
-    BlockSize = config.Step1_BlockSize
-    ThreDist = config.Step1_ThreDist
-    MaxMatch = config.Step1_MaxMatch
-    WindowSize = config.Step1_WindowSize
-    spdup_factor = config.Step1_spdup_factor
+    BlockSize = config.BlockSize
+    ThreDist = config.ThreDist
+    MaxMatch = config.MaxMatch
+    WindowSize = config.WindowSize
+    spdup_factor = config.spdup_factor
     Kaiser_Window_beta = config.Kaiser_Window_beta
     lamb2d = config.lamb2d
     lamb3d = config.lamb3d
@@ -347,102 +256,24 @@ def BM3D_Step1(noisyImg, config):
 
 
     # block-wise estimate with speed-up factor
-    for i in range(int((noisyImg.shape[0] - BlockSize) / spdup_factor) + 2):
+    for i in tqdm(range(int((noisyImg.shape[0] - BlockSize) / spdup_factor) + 2)):
 
         for j in range(int((noisyImg.shape[1] - BlockSize) / spdup_factor) + 2):
             RefPoint = [min(spdup_factor * i, noisyImg.shape[0] - BlockSize - 1), \
                         min(spdup_factor * j, noisyImg.shape[1] - BlockSize - 1)]
-            BlockPos, BlockGroup = Step1_Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, \
+            BlockPos, BlockGroup = Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, \
                                                   ThreDist, MaxMatch, WindowSize, sigma, lamb2d)
-            if transform_type == "DCT_wavelet":
+            if transform_type == "DCT_Wavelet":
                 BlockGroup, nonzero_cnt = dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet)
             elif transform_type == "Wavelet":
                 BlockGroup, nonzero_cnt = full_wavelet_3d_transform(BlockGroup, sigma, lamb3d, wavelet)
+            elif transform_type == "3D_DCT":
+                BlockGroup, nonzero_cnt = Filtering(BlockGroup, sigma, lamb3d)
             else:
-                BlockGroup, nonzero_cnt = Step1_3DFiltering(BlockGroup, sigma, lamb3d)
+                raise NotImplementedError
 
-            Step1_Aggregation(BlockGroup, BlockPos, basicImg, basicWeight, basicKaiser, nonzero_cnt, sigma)
+            Aggregation(BlockGroup, BlockPos, basicImg, basicWeight, basicKaiser, nonzero_cnt, sigma)
     basicWeight = np.where(basicWeight == 0, 1, basicWeight)
     basicImg[:, :] /= basicWeight[:, :]
 
-
     return basicImg
-
-# ==================================================================================================
-#                                                main
-# ==================================================================================================
-
-# if __name__ == '__main__':
-#
-#     cv2.setUseOptimized(True)
-#
-#     img = cv2.imread('istockphoto-1149340384-612x612.jpg')
-#
-#     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-#
-#     # ===============================================================================================
-#
-#     # ============================================ BM3D =============================================
-#
-#     noisy_img = AddNoise(img, sigma)
-#
-#     starting_psnr = ComputePSNR(img, noisy_img)
-#
-#     print('The PSNR of noisy image is {} dB.\n'.format(starting_psnr))
-#
-#     cv2.imwrite('noisy.png', noisy_img)
-#
-#     start_time = time.time()
-#
-#     basic_img = BM3D_Step1(noisy_img)
-#
-#     basic_PSNR = ComputePSNR(img, basic_img)
-#
-#     print('The PSNR of basic image is {} dB.\n'.format(basic_PSNR))
-#
-#     basic_img_uint = np.zeros(img.shape)
-#
-#     cv2.normalize(basic_img, basic_img_uint, 0, 255, cv2.NORM_MINMAX, dtype=-1)
-#
-#     basic_img_uint = basic_img_uint.astype(np.uint8)
-#
-#     if cv2.imwrite('denoise_original.png', basic_img_uint) == True:
-#
-#         print('Basic estimate has been saved successfully.\n')
-#
-#         step1_time = time.time()
-#
-#         print('The running time of basic estimate is', step1_time - start_time, 'seconds.\n')
-#
-#     else:
-#
-#         print('ERROR: basic estimate is not reconstructed successfully.\n')
-#
-#         sys.exit()
-
-    # final_img = BM3D_Step2(basic_img, noisy_img)
-    #
-    # final_PSNR = ComputePSNR(img, final_img)
-    #
-    # print('The PSNR of final image is {} dB.\n'.format(final_PSNR))
-    #
-    # cv2.normalize(final_img, final_img, 0, 255, cv2.NORM_MINMAX, dtype=-1)
-    #
-    # final_img = final_img.astype(np.uint8)
-    #
-    # cv2.imwrite('finaldog.png', final_img)
-    #
-    # if cv2.imwrite('finaldog.png', final_img) == True:
-    #
-    #     print('Final estimate has been saved successfully.\n')
-    #
-    #     step2_time = time.time()
-    #
-    #     print('The running time of final estimate is', step2_time - step1_time, 'seconds.\n')
-    #
-    # else:
-    #
-    #     print('ERROR: final estimate is not reconstructed successfully.\n')
-    #
-    #     sys.exit()
-#
