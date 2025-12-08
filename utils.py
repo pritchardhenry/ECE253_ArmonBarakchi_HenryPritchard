@@ -16,6 +16,8 @@ def get_config():
                         help="2D transform threshold scaling (default: 2.0)")
     parser.add_argument("--lamb3d", type=float, default=2.7,
                         help="3D transform threshold scaling (default: 2.7)")
+    parser.add_argument("--level", type=int, default=1,
+                        help="level of DWT.)")
 
     # Step 1 parameters
     parser.add_argument("--ThreDist", type=float, default=2500,

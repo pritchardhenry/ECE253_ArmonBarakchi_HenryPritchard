@@ -4,7 +4,7 @@ import pywt
 import pywt
 import numpy as np
 
-def dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet='haar', DEBUG=True):
+def dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet='haar', level=1,  DEBUG=False):
     """
     BlockGroup: shape (B, N, M), *already* in 2D DCT domain.
     We apply 1D wavelet along the group dimension (B) and threshold detail coeffs.
@@ -24,8 +24,7 @@ def dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet='haar', DEBUG=True):
 
     # pick a level that is valid, but at least 1
     w = pywt.Wavelet(wavelet)
-    max_level = pywt.dwt_max_level(B, w.dec_len)
-    L = min(3, max(1, max_level))   # 1 ≤ L ≤ 3
+
 
     total_positions = N * M
     zero_frac_counter = 0
@@ -36,9 +35,9 @@ def dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet='haar', DEBUG=True):
             vector = BlockGroup[:, i, j]  # (B,)
 
             # multi-level 1D DWT along group dimension
-            coeffs = pywt.wavedec(vector, wavelet=w, level=L, axis=0)
+            coeffs = pywt.wavedec(vector, wavelet=w, level=level, axis=0)
             if DEBUG and i == 0 and j == 0:
-                print(f"[DEBUG] requested level L={L}, actual levels = {len(coeffs) - 1}")
+                print(f"[DEBUG] requested level={level}, actual levels = {len(coeffs) - 1}")
 
             # coeffs[0] = approximation, coeffs[1:] = detail levels
             new_coeffs = [coeffs[0]]
