@@ -7,9 +7,7 @@ def get_config():
     parser = argparse.ArgumentParser(description='config')
 
     # File Management
-    parser.add_argument("--first_pass_mode", type=str, default="original")
-    parser.add_argument("--test_img_path", type=str, default="istockphoto-1149340384-612x612.jpg")
-    parser.add_argument("--output_path", type=str, default="denoised.png")
+    parser.add_argument("--test_img_path", type=str, default="test_image.jpg", help = "test image path, only for testing on local images. ")
 
     # Noise & filtering parameters
     parser.add_argument("--sigma", type=float, default=25, help="Noise standard deviation (default: 25)")
@@ -27,7 +25,21 @@ def get_config():
     parser.add_argument("--Kaiser_Window_beta", type=float, default=2.0, help="Beta parameter for Kaiser window (default: 2.0)")
     parser.add_argument("--spdup_factor", type=int, default=3, help="Pixel jump step for reference blocks (default: 3)")
 
-    args = parser.parse_args()
+
+    # PGD parameters
+    parser.add_argument("--step_size", type=int, default=1, help="PGD Step size (default: 1)")
+    parser.add_argument("--gamma", type=int, default=1, help="PGD gamma, weight assigned to data fidelity term (default: 1)")
+    parser.add_argument("--num_steps", type=int, default=1, help="PGD steps (default: 20)")
+
+    # Shot noise parameters
+    parser.add_argument("--peak_photons", type=int, default=100, help="Peak photons when applying shot noise (default: 100)")
+
+    # Blurring parameters
+    parser.add_argument("--blur_sigma", type=int, default=100, help="Sigma for blur kernel (default: 80)")
+    parser.add_argument("--blur_kernel_size", type=int, default=100, help="Blur kernel size (default: 3)")
+
+
+
     return args
 
 
