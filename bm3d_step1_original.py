@@ -30,6 +30,29 @@ from Transforms import *
 #                                           Preprocessing
 # ==================================================================================================
 
+def PreDCT(Img, BlockSize):
+    """
+    Do discrete cosine transform (2D transform) for each block in *Img* to reduce the complexity of
+    applying transforms
+
+    Return:
+        BlockDCT_all: 4-dimensional array whose first two dimensions correspond to the block's
+                      position and last two correspond to the DCT array of the block
+    """
+
+    BlockDCT_all = np.zeros((Img.shape[0] - BlockSize, Img.shape[1] - BlockSize, BlockSize, BlockSize), \
+                            dtype=float)
+
+    for i in range(BlockDCT_all.shape[0]):
+
+        for j in range(BlockDCT_all.shape[1]):
+            Block = Img[i:i + BlockSize, j:j + BlockSize]
+
+            BlockDCT_all[i, j, :, :] = dct2D(Block.astype(np.float64))
+
+    return BlockDCT_all
+
+
 def AddNoise(Img, sigma):
 
     GuassNoise = np.random.normal(0, sigma, Img.shape)
@@ -92,19 +115,7 @@ def idct2D(A):
     return idct(idct(A, axis=0, norm='ortho'), axis=1, norm='ortho')
 
 
-def PreDCT(Img, BlockSize):
 
-    BlockDCT_all = np.zeros((Img.shape[0] - BlockSize, Img.shape[1] - BlockSize, BlockSize, BlockSize), \
-                            dtype=float)
-
-    for i in range(BlockDCT_all.shape[0]):
-
-        for j in range(BlockDCT_all.shape[1]):
-            Block = Img[i:i + BlockSize, j:j + BlockSize]
-
-            BlockDCT_all[i, j, :, :] = dct2D(Block.astype(np.float64))
-
-    return BlockDCT_all
 
 
 # ==================================================================================================
@@ -249,6 +260,7 @@ def BM3D_Step1(noisyImg, config):
     lamb3d = config.lamb3d
     transform_type = config.Transform_Type
     wavelet = config.Wavelet_Type
+    level=config.level
     # preprocessing
     basicImg, basicWeight, basicKaiser = Initialization(noisyImg, BlockSize, Kaiser_Window_beta)
 
@@ -264,9 +276,7 @@ def BM3D_Step1(noisyImg, config):
             BlockPos, BlockGroup = Grouping(noisyImg, RefPoint, BlockDCT_all, BlockSize, \
                                                   ThreDist, MaxMatch, WindowSize, sigma, lamb2d)
             if transform_type == "DCT_Wavelet":
-                BlockGroup, nonzero_cnt = dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet)
-            elif transform_type == "Wavelet":
-                BlockGroup, nonzero_cnt = full_wavelet_3d_transform(BlockGroup, sigma, lamb3d, wavelet)
+                BlockGroup, nonzero_cnt = dct_dwt_transform(BlockGroup, sigma, lamb3d, wavelet, level)
             elif transform_type == "3D_DCT":
                 BlockGroup, nonzero_cnt = Filtering(BlockGroup, sigma, lamb3d)
             else:
